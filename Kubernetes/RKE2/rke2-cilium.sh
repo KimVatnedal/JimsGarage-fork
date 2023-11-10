@@ -24,21 +24,21 @@ echo -e " \033[32;5m                                                           \
 KVVERSION="v0.6.3"
 
 # Set the IP addresses of the admin, masters, and workers nodes
-admin=192.168.3.5
-master1=192.168.3.21
-master2=192.168.3.22
-master3=192.168.3.23
-worker1=192.168.3.24
-worker2=192.168.3.25
+admin=192.168.20.36
+master1=192.168.20.37
+master2=192.168.20.38
+master3=192.168.20.39
+worker1=192.168.20.40
+worker2=192.168.20.41
 
 # User of remote machines
-user=ubuntu
+user=kim
 
 # Interface used on remotes
 interface=eth0
 
 # Set the virtual IP address (VIP)
-vip=192.168.3.50
+vip=192.168.20.19
 
 # Array of all master nodes
 allmasters=($master1 $master2 $master3)
@@ -56,10 +56,10 @@ all=($master1 $master2 $master3 $worker1 $worker2)
 allnomaster1=($master2 $master3 $worker1 $worker2)
 
 #Loadbalancer IP range
-lbrange=192.168.3.60-192.168.3.80
+lbrange=192.168.20.260-192.168.20.289
 
 #ssh certificate name variable
-certName=id_rsa
+certName=id_ed25519_bazzite_desktop
 
 #############################################
 #            DO NOT EDIT BELOW              #
@@ -110,8 +110,42 @@ sudo mkdir -p /etc/rancher/rke2
 touch config.yaml
 echo "tls-san:" >> config.yaml 
 echo "  - $vip" >> config.yaml
+echo 'cni: "cilium"' >> config.yaml
+echo 'disable-kube-proxy: true' >> config.yaml
 # copy config.yaml to rancher directory
 sudo cp ~/config.yaml /etc/rancher/rke2/config.yaml
+
+# create rke2-cilium config file
+# Set the file path and name
+file_path="/var/lib/rancher/rke2/manifests/rke2-cilium-config.yaml"
+
+# k8sServiceHost set to kube-vip lb 
+content=$(cat <<EOF
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: rke2-cilium
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    tunnel: disabled
+    kubeProxyReplacement: strict
+    k8sServiceHost: "192.168.20.19"
+    k8sServicePort: "6443"
+    cni:
+      chainingMode: "none"
+    loadBalancer:
+      mode: hybrid
+EOF
+)
+
+# Create the file with the provided content
+#echo "$content" > "$file_path"
+echo "$content" > rke2-cilium-config.yaml
+sudo cp ~/rke2-cilium-config.yaml /var/lib/rancher/rke2/manifests/rke2-cilium-config.yaml
+
+# Optional: Display a message
+echo "File created at: $file_path"
 
 # update path with rke2-binaries
 echo 'export KUBECONFIG=/etc/rancher/rke2/rke2.yaml' >> ~/.bashrc ; echo 'export PATH=${PATH}:/var/lib/rancher/rke2/bin' >> ~/.bashrc ; echo 'alias k=kubectl' >> ~/.bashrc ; source ~/.bashrc ;
@@ -120,6 +154,7 @@ echo 'export KUBECONFIG=/etc/rancher/rke2/rke2.yaml' >> ~/.bashrc ; echo 'export
 for newnode in "${allmasters[@]}"; do
   scp -i ~/.ssh/$certName $HOME/kube-vip.yaml $user@$newnode:~/kube-vip.yaml
   scp -i ~/.ssh/$certName $HOME/config.yaml $user@$newnode:~/config.yaml
+  scp -i ~/.ssh/$certName $HOME/rke2-cilium-config.yaml $user@$newnode:~/rke2-cilium-config.yaml
   scp -i ~/.ssh/$certName ~/.ssh/{$certName,$certName.pub} $user@$newnode:~/.ssh
   echo -e " \033[32;5mCopied successfully!\033[0m"
 done
@@ -128,6 +163,7 @@ done
 ssh -tt $user@$master1 -i ~/.ssh/$certName sudo su <<EOF
 mkdir -p /var/lib/rancher/rke2/server/manifests
 mv kube-vip.yaml /var/lib/rancher/rke2/server/manifests/kube-vip.yaml
+mv rke2-cilium-config.yaml /var/lib/rancher/rke2/server/manifests/rke2-cilium-config.yaml
 mkdir -p /etc/rancher/rke2
 mv config.yaml /etc/rancher/rke2/config.yaml
 echo 'export KUBECONFIG=/etc/rancher/rke2/rke2.yaml' >> ~/.bashrc ; echo 'export PATH=${PATH}:/var/lib/rancher/rke2/bin' >> ~/.bashrc ; echo 'alias k=kubectl' >> ~/.bashrc ; source ~/.bashrc ;
