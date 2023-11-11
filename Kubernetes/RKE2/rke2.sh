@@ -56,7 +56,7 @@ all=($master1 $master2 $master3 $worker1 $worker2)
 allnomaster1=($master2 $master3 $worker1 $worker2)
 
 #Loadbalancer IP range
-lbrange=192.168.20.260-192.168.20.280
+lbrange=192.168.20.160-192.168.20.180
 
 #ssh certificate name variable
 certName=id_ed25519_bazzite_desktop
