@@ -36,7 +36,7 @@ spec:
           value: \"true\"
         - name: vip_address
           value: $vipAddress
-        image: ghcr.io/kube-vip/kube-vip:v0.5.11
+        image: ghcr.io/kube-vip/kube-vip:$vipVersion
         imagePullPolicy: Always
         name: kube-vip
         resources: {}
