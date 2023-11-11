@@ -108,7 +108,6 @@ mkdir ~/.kube
 # create the rke2 config file - kube-proxy less with Cilium
 sudo mkdir -p /etc/rancher/rke2
 touch config.yaml
-echo 'write-kubeconfig-mode: "0644"' >> config.yaml
 echo "tls-san:" >> config.yaml 
 echo "  - $vip" >> config.yaml
 #echo 'cni: "cilium"' >> config.yaml
@@ -169,8 +168,6 @@ echo 'export KUBECONFIG=/etc/rancher/rke2/rke2.yaml' >> ~/.bashrc ; echo 'export
 curl -sfL https://get.rke2.io | sh -
 systemctl enable rke2-server.service
 systemctl start rke2-server.service
-echo "Sleeping 30s"
-sleep 30
 echo "StrictHostKeyChecking no" > ~/.ssh/config
 ssh-copy-id -i /home/$user/.ssh/$certName $user@$admin
 scp -i /home/$user/.ssh/$certName /var/lib/rancher/rke2/server/token $user@$admin:~/token
@@ -197,18 +194,15 @@ kubectl get nodes
 sleep 5
 
 # Step 5.5: Convert to Cilium
-
+mv rke2-cilium-config.yaml /var/lib/rancher/rke2/server/manifests/rke2-cilium-config.yaml
 ssh -tt $user@$master1 -i ~/.ssh/$certName sudo su <<EOF
 echo 'cni: "cilium"' >> /etc/rancher/rke2/config.yaml
 echo "disable-kube-proxy: true" >> /etc/rancher/rke2/config.yaml
 echo "disable: rke2-canal" >> /etc/rancher/rke2/config.yaml
-echo "disable: rke2-ingress-nginx" >> /etc/rancher/rke2/config.yaml
 mv rke2-cilium-config.yaml /var/lib/rancher/rke2/server/manifests/rke2-cilium-config.yaml
 systemctl restart rke2-server.service
 echo "Sleeping 30s"
 sleep 30
-systemctl status rke2-server.service
-sleep 10
 exit
 EOF
 echo -e " \033[32;5mMaster1 Cilium conversion Completed\033[0m"
@@ -218,7 +212,6 @@ for newnode in "${masters[@]}"; do
   ssh -tt $user@$newnode -i ~/.ssh/$certName sudo su <<EOF
   mkdir -p /etc/rancher/rke2
   touch /etc/rancher/rke2/config.yaml
-  echo 'write-kubeconfig-mode: "0644"' >> /etc/rancher/rke2/config.yaml
   echo "token: $token" >> /etc/rancher/rke2/config.yaml
   echo "server: https://$master1:9345" >> /etc/rancher/rke2/config.yaml
   echo "tls-san:" >> /etc/rancher/rke2/config.yaml
@@ -226,7 +219,6 @@ for newnode in "${masters[@]}"; do
   echo 'cni: "cilium"' >> /etc/rancher/rke2/config.yaml
   echo "disable-kube-proxy: true" >> /etc/rancher/rke2/config.yaml
   echo "disable: rke2-canal" >> /etc/rancher/rke2/config.yaml
-  echo "disable: rke2-ingress-nginx" >> /etc/rancher/rke2/config.yaml
   curl -sfL https://get.rke2.io | sh -
   systemctl enable rke2-server.service
   systemctl start rke2-server.service
