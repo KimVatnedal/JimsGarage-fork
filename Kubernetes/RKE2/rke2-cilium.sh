@@ -112,9 +112,9 @@ echo 'write-kubeconfig-mode: "0644"' >> config.yaml
 echo "tls-san:" >> config.yaml 
 echo "  - $vip" >> config.yaml
 echo 'cni: "cilium"' >> config.yaml
+echo "disable-kube-proxy: true" >> config.yaml
 echo "disable:" >> config.yaml
 echo "  - rke2-canal" >> config.yaml
-echo "  - rke2-kube-proxy" >> config.yaml
 echo "  - rke2-ingress-nginx" >> config.yaml
 # copy config.yaml to rancher directory
 sudo cp ~/config.yaml /etc/rancher/rke2/config.yaml
@@ -204,9 +204,9 @@ for newnode in "${masters[@]}"; do
   echo "tls-san:" >> /etc/rancher/rke2/config.yaml
   echo "  - $vip" >> /etc/rancher/rke2/config.yaml
   echo 'cni: "cilium"' >> /etc/rancher/rke2/config.yaml
+  echo "disable-kube-proxy: true" >> /etc/rancher/rke2/config.yaml
   echo "disable:" >> /etc/rancher/rke2/config.yaml
   echo "  - rke2-canal" >> /etc/rancher/rke2/config.yaml
-  echo "  - rke2-kube-proxy" >> /etc/rancher/rke2/config.yaml
   echo "  - rke2-ingress-nginx" >> /etc/rancher/rke2/config.yaml
   curl -sfL https://get.rke2.io | sh -
   systemctl enable rke2-server.service
