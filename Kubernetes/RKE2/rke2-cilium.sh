@@ -194,7 +194,7 @@ kubectl get nodes
 sleep 5
 
 # Step 5.5: Convert to Cilium
-mv rke2-cilium-config.yaml /var/lib/rancher/rke2/server/manifests/rke2-cilium-config.yaml
+sudo mv rke2-cilium-config.yaml /var/lib/rancher/rke2/server/manifests/rke2-cilium-config.yaml
 ssh -tt $user@$master1 -i ~/.ssh/$certName sudo su <<EOF
 echo 'cni: "cilium"' >> /etc/rancher/rke2/config.yaml
 echo "disable-kube-proxy: true" >> /etc/rancher/rke2/config.yaml
