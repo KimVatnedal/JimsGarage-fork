@@ -24,12 +24,12 @@ echo -e " \033[32;5m                                                           \
 KVVERSION="v0.6.3"
 
 # Set the IP addresses of the admin, masters, and workers nodes
-admin=192.168.20.36
-master1=192.168.20.37
-master2=192.168.20.38
-master3=192.168.20.39
-worker1=192.168.20.40
-worker2=192.168.20.41
+admin=192.168.20.90
+master1=192.168.20.91
+master2=192.168.20.92
+master3=192.168.20.93
+worker1=192.168.20.94
+worker2=192.168.20.95
 
 # User of remote machines
 user=kim
@@ -38,7 +38,7 @@ user=kim
 interface=eth0
 
 # Set the virtual IP address (VIP)
-vip=192.168.20.19
+vip=192.168.20.99
 
 # Array of all master nodes
 allmasters=($master1 $master2 $master3)
@@ -188,7 +188,6 @@ sudo cat ~/.kube/rke2.yaml | sed 's/127.0.0.1/'$vip'/g' > $HOME/.kube/config
 sudo chown $(id -u):$(id -g) $HOME/.kube/config
 export KUBECONFIG=${HOME}/.kube/config
 sudo cp ~/.kube/config /etc/rancher/rke2/rke2.yaml
-echo "Sleeping 30s"
 sleep 30
 kubectl get nodes
 sleep 5
