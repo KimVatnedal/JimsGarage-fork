@@ -61,6 +61,10 @@ lbrange=192.168.20.160-192.168.20.189
 #ssh certificate name variable
 certName=id_ed25519_bazzite_desktop
 
+#Cilium vars
+CILIUM_CLI_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/cilium-cli/main/stable-v0.14.txt)
+CLI_ARCH=amd64
+
 #############################################
 #            DO NOT EDIT BELOW              #
 #############################################
@@ -82,6 +86,23 @@ then
 else
     echo -e " \033[32;5mKubectl already installed\033[0m"
 fi
+
+# Install Cilium if not already present
+if ! command -v cilium version &> /dev/null
+then
+    echo -e " \033[31;5mCilium not found, installing\033[0m"
+    curl -L --fail --remote-name-all https://github.com/cilium/cilium-cli/releases/download/${CILIUM_CLI_VERSION}/cilium-linux-${CLI_ARCH}.tar.gz{,.sha256sum}
+    sha256sum --check cilium-linux-${CLI_ARCH}.tar.gz.sha256sum
+    sudo tar xzvfC cilium-linux-${CLI_ARCH}.tar.gz /usr/local/bin
+    rm cilium-linux-${CLI_ARCH}.tar.gz{,.sha256sum}
+# Debug tool - list all pods not managed by Cilium: ./k8s-unmanaged.sh
+    curl -sLO https://raw.githubusercontent.com/cilium/cilium/master/contrib/k8s/k8s-unmanaged.sh
+    chmod +x k8s-unmanaged.sh
+
+else
+    echo -e " \033[32;5mCilium already installed\033[0m"
+fi
+
 
 # Create SSH Config file to ignore checking (don't use in production!)
 echo "StrictHostKeyChecking no" > ~/.ssh/config
@@ -110,8 +131,8 @@ sudo mkdir -p /etc/rancher/rke2
 touch config.yaml
 echo "tls-san:" >> config.yaml 
 echo "  - $vip" >> config.yaml
-#echo 'cni: "cilium"' >> config.yaml
-#echo "disable-kube-proxy: true" >> config.yaml
+echo 'cni: "cilium"' >> config.yaml
+echo "disable-kube-proxy: strict" >> config.yaml
 #echo "disable: rke2-canal" >> config.yaml
 #echo "disable: rke2-ingress-nginx" >> config.yaml
 # copy config.yaml to rancher directory
@@ -131,7 +152,7 @@ metadata:
 spec:
   valuesContent: |-
     kubeProxyReplacement: strict
-    k8sServiceHost: "192.168.20.19"
+    k8sServiceHost: "192.168.20.99"
     k8sServicePort: "6443"
     cni:
       chainingMode: "none"
@@ -141,7 +162,7 @@ EOF
 # Create the file with the provided content
 #echo "$content" > "$file_path"
 echo "$content" > rke2-cilium-config.yaml
-#sudo cp ~/rke2-cilium-config.yaml /var/lib/rancher/rke2/server/manifests/rke2-cilium-config.yaml
+sudo cp ~/rke2-cilium-config.yaml /var/lib/rancher/rke2/server/manifests/rke2-cilium-config.yaml
 
 # Optional: Display a message
 #echo "File created at: $file_path"
@@ -162,6 +183,7 @@ done
 ssh -tt $user@$master1 -i ~/.ssh/$certName sudo su <<EOF
 mkdir -p /var/lib/rancher/rke2/server/manifests
 mv kube-vip.yaml /var/lib/rancher/rke2/server/manifests/kube-vip.yaml
+mv rke2-cilium-config.yaml /var/lib/rancher/rke2/server/manifests/rke2-cilium-config.yaml
 mkdir -p /etc/rancher/rke2
 mv config.yaml /etc/rancher/rke2/config.yaml
 echo 'export KUBECONFIG=/etc/rancher/rke2/rke2.yaml' >> ~/.bashrc ; echo 'export PATH=${PATH}:/var/lib/rancher/rke2/bin' >> ~/.bashrc ; echo 'alias k=kubectl' >> ~/.bashrc ; source ~/.bashrc ;
@@ -193,37 +215,37 @@ kubectl get nodes
 sleep 5
 
 # Step 5.5: Convert to Cilium
-sudo mv rke2-cilium-config.yaml /var/lib/rancher/rke2/server/manifests/rke2-cilium-config.yaml
-ssh -tt $user@$master1 -i ~/.ssh/$certName sudo su <<EOF
-echo 'cni: "cilium"' >> /etc/rancher/rke2/config.yaml
-echo "disable-kube-proxy: true" >> /etc/rancher/rke2/config.yaml
-echo "disable: rke2-canal" >> /etc/rancher/rke2/config.yaml
-mv rke2-cilium-config.yaml /var/lib/rancher/rke2/server/manifests/rke2-cilium-config.yaml
-systemctl restart rke2-server.service
-echo "Sleeping 30s"
-sleep 30
-exit
-EOF
-echo -e " \033[32;5mMaster1 Cilium conversion Completed\033[0m"
-
+#sudo mv rke2-cilium-config.yaml /var/lib/rancher/rke2/server/manifests/rke2-cilium-config.yaml
+#ssh -tt $user@$master1 -i ~/.ssh/$certName sudo su <<EOF
+#echo 'cni: "cilium"' >> /etc/rancher/rke2/config.yaml
+#echo "disable-kube-proxy: true" >> /etc/rancher/rke2/config.yaml
+#echo "disable: rke2-canal" >> /etc/rancher/rke2/config.yaml
+#mv rke2-cilium-config.yaml /var/lib/rancher/rke2/server/manifests/rke2-cilium-config.yaml
+#systemctl restart rke2-server.service
+#echo "Sleeping 30s"
+#sleep 30
+#exit
+#EOF
+#echo -e " \033[32;5mMaster1 Cilium conversion Completed\033[0m"
+cilium status
+kubectl exec -n kube-system ds/cilium -- cilium status
 # Step 6: Add other Masternodes, note we import the token we extracted from step 3
 for newnode in "${masters[@]}"; do
   ssh -tt $user@$newnode -i ~/.ssh/$certName sudo su <<EOF
   mkdir -p /etc/rancher/rke2
   touch /etc/rancher/rke2/config.yaml
   echo "token: $token" >> /etc/rancher/rke2/config.yaml
-  echo "server: https://$master1:9345" >> /etc/rancher/rke2/config.yaml
+  echo "server: https://$vip:9345" >> /etc/rancher/rke2/config.yaml
   echo "tls-san:" >> /etc/rancher/rke2/config.yaml
   echo "  - $vip" >> /etc/rancher/rke2/config.yaml
   echo 'cni: "cilium"' >> /etc/rancher/rke2/config.yaml
-  echo "disable-kube-proxy: true" >> /etc/rancher/rke2/config.yaml
-  echo "disable: rke2-canal" >> /etc/rancher/rke2/config.yaml
+  echo "disable-kube-proxy: strict" >> /etc/rancher/rke2/config.yaml
   curl -sfL https://get.rke2.io | sh -
   systemctl enable rke2-server.service
   systemctl start rke2-server.service
   exit
 EOF
-  echo -e " \033[32;5mMaster node joined successfully!\033[0m"
+  echo -e " \033[32;5mMaster nodes joined successfully!\033[0m"
 done
 
 kubectl get nodes -o wide
@@ -240,10 +262,11 @@ for newnode in "${workers[@]}"; do
   systemctl start rke2-agent.service
   exit
 EOF
-  echo -e " \033[32;5mMaster node joined successfully!\033[0m"
+  echo -e " \033[32;5mWorker nodes joined successfully!\033[0m"
 done
 
 kubectl get nodes -o wide
+cilium status
 
 #Step 8: Setup Kube-VIP as LoadBalancer
 #IP range for loadbalancer services to use
